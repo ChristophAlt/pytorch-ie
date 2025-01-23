@@ -21,6 +21,7 @@ from pytorch_ie.core.taskmodule import (
     TaskModule,
     TaskOutput,
 )
+from pytorch_ie.utils.document import deduplicate_annotations
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +264,7 @@ class Pipeline:
         self,
         model_inputs: Sequence[TaskEncoding],
         model_outputs: Sequence[TaskOutput],
+        deduplicate_annotations: bool = False,
         **postprocess_parameters,
     ) -> Sequence[Document]:
         """
@@ -270,11 +272,14 @@ class Pipeline:
         something more friendly. Generally it will output a list of documents.
         """
         # This creates annotations from the model outputs and attaches them to the correct documents.
-        return self.taskmodule.decode(
+        result = self.taskmodule.decode(
             task_encodings=model_inputs,
             task_outputs=model_outputs,
             **postprocess_parameters,
         )
+        if deduplicate_annotations:
+            result = [document.deduplicate_annotations() for document in result]
+        return result
 
     def get_inference_context(self):
         inference_context = (
@@ -363,12 +368,6 @@ class Pipeline:
             postprocess_params,
         ) = self._sanitize_parameters(**kwargs)
 
-        in_place: bool = postprocess_params.get("inplace", True)
-        if in_place and not isinstance(documents, (MutableSequence, Document)):
-            raise InplaceNotSupportedException(
-                "Immutable sequences of Documents (such as Datasets) can't be modified in place. Please set inplace=False."
-            )
-
         if "TOKENIZERS_PARALLELISM" not in os.environ:
             logger.info(
                 "Disabling tokenizer parallelism, we're using DataLoader multithreading already"
@@ -380,6 +379,16 @@ class Pipeline:
         dataloader_params = {**self._dataloader_params, **dataloader_params}
         forward_params = {**self._forward_params, **forward_params}
         postprocess_params = {**self._postprocess_params, **postprocess_params}
+
+        in_place: bool = postprocess_params.get("inplace", True)
+        if in_place and not isinstance(documents, (MutableSequence, Document)):
+            raise InplaceNotSupportedException(
+                "Immutable sequences of Documents (such as Datasets) can't be modified in place. Please set inplace=False."
+            )
+        if postprocess_params.get("deduplicate_annotations", False) and in_place:
+            raise ValueError(
+                "Deduplicating annotations requires inplace=False. Please set inplace=False."
+            )
 
         single_document = False
         if isinstance(documents, Document):
