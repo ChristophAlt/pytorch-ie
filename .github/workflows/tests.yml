@@ -55,6 +55,7 @@ jobs:
               run: |
                   # pwd output: /home/runner/work/pytorch-ie/pytorch-ie
                   pipx install --verbose --pip-args=--constraint=$(pwd)/.github/workflows/constraints.txt poetry
+                  pipx inject --pip-args=--constraint=$(pwd)/.github/workflows/constraints.txt poetry poetry-plugin-export
                   poetry --version
             - name: Install Nox
               run: |
