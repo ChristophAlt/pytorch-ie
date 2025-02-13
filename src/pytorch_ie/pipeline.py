@@ -70,6 +70,7 @@ class Pipeline:
         taskmodule: TaskModule,
         device: Union[int, str] = "cpu",
         half_precision_model: bool = False,
+        compile_model: bool = False,
         **kwargs,
     ):
         self.taskmodule = taskmodule
@@ -83,6 +84,9 @@ class Pipeline:
         self.model: PyTorchIEModel = model.to(self.device)  # type: ignore
         if half_precision_model:
             self.model = self.model.to(dtype=get_autocast_dtype(self.device.type))
+
+        if compile_model:
+            self.model = torch.compile(self.model)
 
         self.call_count = 0
         (
